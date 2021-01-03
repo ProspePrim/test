@@ -1,6 +1,6 @@
 ---
 
-- hosts: test
+- hosts: all
   tasks:
     - name: Remove docker if installed from CentOS repo
       yum:

@@ -1,0 +1,122 @@
+---
+
+- hosts: all
+  tasks:
+    - name: Remove docker if installed from CentOS repo
+      yum:
+        name: ['docker', 'docker-client', 'docker-client-latest', 'docker-common', 'docker-latest', 'docker-latest-logrotate', 'docker-logrotate', 'docker-engine']
+        state: removed
+      become: yes
+
+    - name: Install yum utils
+      yum:
+        name: ['yum-utils']
+        state: latest
+      become: yes
+
+    - name: Add Docker repo
+      get_url:
+        url: https://download.docker.com/linux/centos/docker-ce.repo
+        dest: /etc/yum.repos.d/docker-ce.repo
+      become: yes
+
+    - name: Install Docker
+      yum:
+        name: ['docker-ce','docker-ce-cli','containerd.io']
+        state: latest
+      become: yes
+
+    - name: Start Docker service
+      service:
+        name: docker
+        state: started
+        enabled: yes
+      become: yes
+
+    - name: Add user vagrant to docker group
+      user:
+        name: vagrant
+        groups: docker
+        append: yes
+      become: yes
+
+    - name: Install gcc, wget, unzip, gcc-c++, cmake, ncurses-devel, python3
+      yum:
+        name: ['gcc','wget','unzip', 'gcc-c++', 'cmake', 'ncurses-devel', 'python3', 'python-pip']
+        state: latest
+      become: yes
+
+    - name: Make dir CMake
+      file:
+        path: /home/vagrant/cmake
+        state: directory
+
+    - name: Make dir Docker
+      file:
+        path: /home/vagrant/docker
+        state: directory
+
+    - name: Download sqlite
+      get_url:
+        url: https://www.sqlite.org/2018/sqlite-amalgamation-3260000.zip
+        dest: /home/vagrant/
+
+    - name: Unarchive a file to /home/vagrant/
+      unarchive:
+        src: /home/vagrant/sqlite-amalgamation-3260000.zip
+        dest: /home/vagrant/
+        remote_src: yes
+
+    - name: Delete /home/vagrant/cmake/src/
+      file:
+        path: /home/vagrant/cmake/src
+        state: absent
+
+    - name: Unarchive a file to /home/vagrant/cmake
+      unarchive:
+        src: /home/vagrant/sqlite-amalgamation-3260000.zip
+        dest: /home/vagrant/cmake
+        remote_src: yes
+
+    - name: Move /home/vagrant/cmake/sqlite-amalgamation-3260000 to /home/vagrant/cmake/src
+      command: mv /home/vagrant/cmake/sqlite-amalgamation-3260000 /home/vagrant/cmake/src
+
+    - name: Gcc compilation
+      shell: gcc shell.c  sqlite3.c -lpthread -ldl  -o sqlite.so
+      args:
+        chdir: /home/vagrant/sqlite-amalgamation-3260000
+
+    - name: Download CMakeLists.txt
+      get_url:
+        url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/CMakeLists.txt
+        dest: /home/vagrant/cmake
+
+    - name: Use CMake build
+      shell: cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/home/vagrant/cmake
+      args:
+        chdir: /home/vagrant/cmake/
+
+    - name: Use CMakeLists
+      shell: make install
+      args:
+        chdir: /home/vagrant/cmake/
+
+    - name: Ceate Dockerfile
+      get_url:
+        url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/Dockerfile
+        dest: /home/vagrant/docker/
+
+    - name: Use CMakeLists
+      command: pip install docker
+      become: yes
+
+
+    - name: Build the image
+      shell: docker build -t gcc:test_inf .
+      args:
+        chdir: /home/vagrant/docker/
+      become: yes
+
+    - name: Build the container
+      command: docker run -di --name inf-tst-1 gcc:test_inf
+      become: yes
