@@ -1,0 +1,64 @@
+---
+
+- hosts: all
+  tasks:
+    - name: Install gcc, wget, unzip, gcc-c++, cmake, ncurses-devel
+      yum:
+        name: ['gcc','wget','unzip', 'gcc-c++', 'cmake', 'ncurses-devel']
+        state: latest
+      become: yes
+
+    - name: Download sqlite
+      get_url:
+        url: https://www.sqlite.org/2018/sqlite-amalgamation-3260000.zip
+        dest: ~
+
+    - name: Unarchive a file
+      unarchive:
+        src: ~/sqlite-amalgamation-3260000.zip
+        dest: ~
+        remote_src: yes
+
+    - name: Move sqlite-amalgamation-3260000 to src
+      command: mv ~/sqlite-amalgamation-3260000 /home/vagrant/src
+
+    - name: Gcc compilation
+      shell: gcc shell.c  sqlite3.c -lpthread -ldl  -o sqlite.so
+      args:
+        chdir: ~/src
+
+    - name: Make dir CMake
+      file:  
+        path: ~/CMake
+        state: directory
+
+    - name: Copy /src to /CMake
+      command: cp src ~/CMake
+
+    - name: Download CMakeLists.txt
+      get_url:
+        url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/CMakeLists.txt
+        dest: ~/CMake
+
+    - name: Use CMakeLists
+      shell: make
+      args:
+        chdir: ~/CMake
+
+    - name: Make dir Docker
+      file:
+        path: ~/Docker
+        state: directory
+
+    - name: Ceate Dockerfile
+      get_url:
+        url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/Dockerfile
+        dest: ~/Docker/
+
+    - name: Build the image
+      command: docker build -t test_gcc:latest ./Dockerfile.txt
+
+#    - name: Build the container
+#      community.general.docker_container:
+#        name: test
+#        image: test_gcc:latest
