@@ -8,57 +8,71 @@
         state: latest
       become: yes
 
+    - name: Make dir CMake
+      file:
+        path: /home/vagrant/cmake
+        state: directory
+
+    - name: Make dir Docker
+      file:
+        path: /home/vagrant/docker
+        state: directory
+
     - name: Download sqlite
       get_url:
         url: https://www.sqlite.org/2018/sqlite-amalgamation-3260000.zip
-        dest: ~
+        dest: /home/vagrant/
 
-    - name: Unarchive a file
+    - name: Unarchive a file to /home/vagrant/
       unarchive:
-        src: ~/sqlite-amalgamation-3260000.zip
-        dest: ~
+        src: /home/vagrant/sqlite-amalgamation-3260000.zip
+        dest: /home/vagrant/
         remote_src: yes
 
-    - name: Move sqlite-amalgamation-3260000 to src
-      command: mv ~/sqlite-amalgamation-3260000 /home/vagrant/src
+    - name: Delete /home/vagrant/cmake/src/
+      file:
+        path: /home/vagrant/cmake/src
+        state: absent
+
+    - name: Unarchive a file to /home/vagrant/cmake
+      unarchive:
+        src: /home/vagrant/sqlite-amalgamation-3260000.zip
+        dest: /home/vagrant/cmake
+        remote_src: yes
+
+    - name: Move /home/vagrant/cmake/sqlite-amalgamation-3260000 to /home/vagrant/cmake/src
+      command: mv /home/vagrant/cmake/sqlite-amalgamation-3260000 /home/vagrant/cmake/src
 
     - name: Gcc compilation
       shell: gcc shell.c  sqlite3.c -lpthread -ldl  -o sqlite.so
       args:
-        chdir: ~/src
-
-    - name: Make dir CMake
-      file:  
-        path: ~/CMake
-        state: directory
-
-    - name: Copy /src to /CMake
-      command: cp src ~/CMake
+        chdir: /home/vagrant/sqlite-amalgamation-3260000
 
     - name: Download CMakeLists.txt
       get_url:
         url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/CMakeLists.txt
-        dest: ~/CMake
+        dest: /home/vagrant/cmake
+
+    - name: Use CMake build
+      shell: cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=/home/vagrant/cmake
+      args:
+        chdir: /home/vagrant/cmake/
 
     - name: Use CMakeLists
-      shell: make
+      shell: make install
       args:
-        chdir: ~/CMake
-
-    - name: Make dir Docker
-      file:
-        path: ~/Docker
-        state: directory
+        chdir: /home/vagrant/cmake/
 
     - name: Ceate Dockerfile
       get_url:
         url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/Dockerfile
-        dest: ~/Docker/
+        dest: /home/vagrant/docker/
+
 
     - name: Build the image
-      command: docker build -t test_gcc:latest ./Dockerfile.txt
+      shell: docker build -t gcc:test_inf .
+      args:
+        chdir: /home/vagrant/docker/
 
-#    - name: Build the container
-#      community.general.docker_container:
-#        name: test
-#        image: test_gcc:latest
+    - name: Build the container
+      command: docker run -di --name inf-tst-1 gcc:test_inf
