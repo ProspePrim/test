@@ -1,13 +1,13 @@
 #!/bin/bash
 
-vboxmanage setproperty machinefolder /home/test/VB
-mkdir /home/test/VB/vbox
+vboxmanage setproperty machinefolder ~/VB
+mkdir ~/VB/vbox
 
 # Create VM
 VBoxManage createvm --name test_CentOS_7 \                            # --name <name>
 	--ostype RedHat_64 \                                          # [--ostype <ostype>]
 	--register \                                                  # [--register]
-	--basefolder /home/test/VB/vbox                               # [--basefolder <path>]
+	--basefolder ~/VB/vbox                               # [--basefolder <path>]
 
 # modify VM
 VBoxManage modifyvm test_CentOS_7 \                                   # <uuid|vmname> 
@@ -25,7 +25,7 @@ VBoxManage storagectl test_CentOS_7 \                                 # <uuid|vm
 	--add sata                                                    # [--add ide|sata|scsi|floppy|sas|usb|pcie]
 
 VBoxManage createhd \                                                 # 
-        --filename /home/test/VB/vbox/CentOS_7.vdi \                  # --filename <filename>
+        --filename ~/VB/vbox/CentOS_7.vdi \                  # --filename <filename>
         --size 10000 \                                                # --size <megabytes>
         --format VDI \                                                # [--format VDI|VMDK|VHD] (default: VDI)
         --variant Standard                                            # [--variant Standard,Fixed,Split2G,Stream,ESX]

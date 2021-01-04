@@ -4,7 +4,9 @@
 
 mkdir vag_test_VM && cd vag_test_VM
 
-cat <<EOF >> Vagrantfile
+vagrant init
+
+cat <<EOF > Vagrantfile
 Vagrant.configure("2") do |config|
   config.ssh.insert_key = false                                  
 

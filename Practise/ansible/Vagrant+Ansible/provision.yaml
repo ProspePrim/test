@@ -106,9 +106,9 @@
         url: https://raw.githubusercontent.com/ProspePrim/test/main/Practise/Dockerfile
         dest: /home/vagrant/docker/
 
-    - name: Use CMakeLists
-      command: pip install docker
-      become: yes
+#    - name: Use CMakeLists
+#      command: pip install docker
+#      become: yes
 
 
     - name: Build the image
