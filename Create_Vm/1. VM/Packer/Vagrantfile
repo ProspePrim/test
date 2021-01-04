@@ -1,0 +1,25 @@
+Vagrant.configure("2") do |config|
+
+  config.ssh.username = 'vagrant'
+  config.ssh.password = 'vagrant'
+  config.ssh.insert_key = 'true'
+
+  # VirtualBox.
+  config.vm.define "virtualbox" do |virtualbox|
+    virtualbox.vm.hostname = "centos-7-2009"
+    virtualbox.vm.box = "file:/path/to/centos-7-2009-x86_64.box"   # Change path
+    virtualbox.vm.network :private_network, ip: "172.16.3.10"
+
+    config.vm.provider :virtualbox do |v|
+      v.gui = false
+      v.memory = 512
+      v.cpus = 2
+    end
+
+  # Python3 for ansible
+  config.vm.provision "shell", inline: <<-SHELL
+      yum update
+      yum install -y python3
+    SHELL
+  end
+end
