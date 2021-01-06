@@ -6,7 +6,7 @@ Vagrant.configure("2") do |config|
     cn1.vm.hostname = "ceph-node-"
     cn1.vm.box = "geerlingguy/centos7"
     cn1.vm.network :private_network, ip: "172.16.3.21"
-    cn1.newdisk.size = 50 * 1024 # size in megabytes
+    cn1.newdisk.size = 100 * 1024 # size in megabytes
     cn1.newdisk.path = "ceph-node-1.vdi"
     
     
@@ -23,7 +23,8 @@ Vagrant.configure("2") do |config|
     cn2.vm.hostname = "ceph-node-2"
     cn2.vm.box = "geerlingguy/centos7"
     cn2.vm.network :private_network, ip: "172.16.3.22"
-    
+    cn2.newdisk.size = 100 * 1024 # size in megabytes
+    cn2.newdisk.path = "ceph-node-2.vdi"    
     
     config.vm.provider :virtualbox do |v|
       v.gui = false
@@ -35,9 +36,11 @@ Vagrant.configure("2") do |config|
 
   # ceph-node-3.
   config.vm.define "ceph-node-3" do |cn3|
-    cn3.vm.hostname = "kub-ingress-1"
+    cn3.vm.hostname = "ceph-node-3"
     cn3.vm.box = "geerlingguy/centos7"
     cn3.vm.network :private_network, ip: "172.16.3.23"
+    cn3.newdisk.size = 100 * 1024 # size in megabytes
+    cn3.newdisk.path = "ceph-node-3.vdi" 
     
     
     config.vm.provider :virtualbox do |v|
@@ -54,6 +57,7 @@ Vagrant.configure("2") do |config|
         yum update
         yum install -y python3
         yum install -y ansible
+        
       SHELL
     config.vm.provision :ansible do |ansible|
       ansible.limit = "all"
@@ -62,3 +66,4 @@ Vagrant.configure("2") do |config|
     
 
 end
+
