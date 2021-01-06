@@ -3,7 +3,7 @@ Vagrant.configure("2") do |config|
 
   # ceph-node-1.
   config.vm.define "ceph-node-1" do |cn1|
-    cn1.vm.hostname = "ceph-node-"
+    cn1.vm.hostname = "ceph-node-1"
     cn1.vm.box = "geerlingguy/centos7"
     cn1.vm.network :private_network, ip: "172.16.3.21"
     cn1.newdisk.size = 100 * 1024 # size in megabytes
