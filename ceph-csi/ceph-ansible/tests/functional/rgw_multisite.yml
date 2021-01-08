@@ -3,6 +3,15 @@
   gather_facts: True
   become: True
   tasks:
+    - name: check if it is Atomic host
+      stat: path=/run/ostree-booted
+      register: stat_ostree
+      check_mode: no
+
+    - name: set fact for using Atomic host
+      set_fact:
+        is_atomic: '{{ stat_ostree.stat.exists }}'
+
     - name: import_role ceph-defaults
       import_role:
         name: ceph-defaults
@@ -21,7 +30,7 @@
         state: present
       register: result
       until: result is succeeded
-      when: not containerized_deployment | bool
+      when: not is_atomic | bool
 
     - name: generate and upload a random 10Mb file - containerized deployment
       shell: >

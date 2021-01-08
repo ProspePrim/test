@@ -5,3 +5,4 @@ rgw_create_pools:
     pg_num: 16
     type: replicated
   bar:
+    pg_num: 16

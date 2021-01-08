@@ -89,6 +89,13 @@
         - item.data is undefined
       with_items: '{{ lvm_volumes }}'
 
+- name: warning deprecation for fqdn configuration
+  fail:
+    msg: "fqdn configuration is not supported anymore. Use 'use_fqdn_yes_i_am_sure: true' if you really want to use it. See release notes for more details"
+  when:
+    - mon_use_fqdn | bool or mds_use_fqdn | bool
+    - not use_fqdn_yes_i_am_sure | bool
+
 - name: debian based systems tasks
   when: ansible_os_family == 'Debian'
   block:
@@ -103,25 +110,6 @@
       when:
         - ceph_origin == 'repository'
         - ceph_repository == 'rhcs'
-
-# SUSE/openSUSE Leap only supports the following:
-# - ceph_origin == 'distro'
-# - ceph_origin == 'repository' and ceph_repository == 'obs'
-- name: SUSE/openSUSE Leap based system tasks
-  when: ansible_os_family == 'Suse'
-  block:
-    - name: Check ceph_origin definition on SUSE/openSUSE Leap
-      fail:
-        msg: "Unsupported installation method origin:{{ ceph_origin }}"
-      when: ceph_origin not in ['distro', 'repository']
-
-    - name: Check ceph_repository definition on SUSE/openSUSE Leap
-      fail:
-        msg: "Unsupported installation method origin:{{ ceph_origin }} repo:{{ ceph_repository }}'
-                  only valid combination is ceph_origin == 'repository' and ceph_repository == 'obs'"
-      when:
-        - ceph_origin == 'repository'
-        - ceph_repository != 'obs'
 
 - name: validate ntp daemon type
   fail:
@@ -237,45 +225,3 @@
     - ceph_docker_registry_auth | bool
     - (ceph_docker_registry_username is not defined or ceph_docker_registry_password is not defined) or
       (ceph_docker_registry_username | length == 0 or ceph_docker_registry_password | length == 0)
-
-- name: validate openstack_keys key format
-  fail:
-    msg: '{{ item.name }} key format invalid'
-  with_items: '{{ openstack_keys }}'
-  when:
-    - osd_group_name in group_names
-    - openstack_keys is defined
-    - openstack_keys | length > 0
-    - item.key is defined
-    - item.key is not match("^[a-zA-Z0-9+/]{38}==$")
-
-- name: validate clients keys key format
-  fail:
-    msg: '{{ item.name }} key format invalid'
-  with_items: '{{ keys }}'
-  when:
-    - client_group_name in group_names
-    - keys is defined
-    - keys | length > 0
-    - item.key is defined
-    - item.key is not match("^[a-zA-Z0-9+/]{38}==$")
-
-- name: validate openstack_keys caps
-  fail:
-    msg: '{{ item.name }} key has no caps defined'
-  with_items: '{{ openstack_keys }}'
-  when:
-    - osd_group_name in group_names
-    - openstack_keys is defined
-    - openstack_keys | length > 0
-    - item.caps is not defined
-
-- name: validate clients keys caps
-  fail:
-    msg: '{{ item.name }} key has no caps defined'
-  with_items: '{{ keys }}'
-  when:
-    - client_group_name in group_names
-    - keys is defined
-    - keys | length > 0
-    - item.caps is not defined

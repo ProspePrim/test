@@ -7,7 +7,9 @@
 - name: fail on unsupported ansible version
   fail:
     msg: "Ansible version must be 2.9!"
-  when: ansible_version.minor|int != 9
+  when:
+    - ansible_version.major|int == 2
+    - ansible_version.minor|int != 9
 
 - name: fail on unsupported system
   fail:
@@ -24,15 +26,6 @@
     msg: "Distribution not supported {{ ansible_os_family }}"
   when: ansible_os_family not in ['Debian', 'RedHat', 'ClearLinux', 'Suse']
 
-- name: fail on unsupported CentOS release
-  fail:
-    msg: "CentOS release not supported {{ ansible_distribution_major_version }} with dashboard"
-  when:
-    - ansible_distribution == 'CentOS'
-    - ansible_distribution_major_version | int == 7
-    - not containerized_deployment | bool
-    - dashboard_enabled | bool
-
 - name: red hat based systems tasks
   when:
     - ceph_repository == 'rhcs'
@@ -40,8 +33,9 @@
   block:
     - name: fail on unsupported distribution for red hat ceph storage
       fail:
-        msg: "Distribution not supported {{ ansible_distribution_version }} by Red Hat Ceph Storage, only RHEL >= 8.2"
-      when: ansible_distribution_version is version('8.2', '<')
+        msg: "Distribution not supported {{ ansible_distribution_version }} by Red Hat Ceph Storage, only RHEL 8 (>= 8.1) or RHEL 7 (>= 7.7)"
+      when: (ansible_distribution_major_version | int == 8 and ansible_distribution_version is version('8.1', '<')) or
+            (ansible_distribution_major_version | int == 7 and ansible_distribution_version is version('7.7', '<'))
 
     - name: subscription manager related tasks
       when: ceph_repository_type == 'cdn'
@@ -65,11 +59,11 @@
     - ceph_repository == 'uca'
     - ansible_distribution != 'Ubuntu'
 
-- name: "fail on unsupported SUSE/openSUSE distribution (only 15.x supported)"
+- name: "fail on unsupported openSUSE distribution (only 15.x supported)"
   fail:
-    msg: "Distribution not supported: {{ ansible_distribution }} {{ ansible_distribution_major_version }}"
+    msg: "Distribution not supported: {{ ansible_distribution }}"
   when:
-    - ansible_distribution == 'openSUSE Leap' or ansible_distribution == 'SUSE'
+    - ansible_distribution == 'openSUSE Leap'
     - ansible_distribution_major_version != '15'
 
 - name: fail if systemd is not present

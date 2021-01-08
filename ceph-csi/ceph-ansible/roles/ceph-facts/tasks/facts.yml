@@ -11,6 +11,10 @@
 - name: import_tasks container_binary.yml
   import_tasks: container_binary.yml
 
+- name: set_fact is_podman
+  set_fact:
+    is_podman: "{{ podman_binary.stat.exists }}"
+
 # In case ansible_python_interpreter is set by the user,
 # ansible will not discover python and discovered_interpreter_python
 # will not be set
@@ -31,7 +35,20 @@
   delegate_facts: true
   with_items: "{{ groups.get(mon_group_name, []) }}"
   run_once: true
-  when: groups.get(mon_group_name, []) | length > 0
+  when:
+    - groups.get(mon_group_name, []) | length > 0
+    - not mon_use_fqdn | bool
+
+- name: set_fact monitor_name ansible_fqdn
+  set_fact:
+    monitor_name: "{{ hostvars[item]['ansible_fqdn'] }}"
+  delegate_to: "{{ item }}"
+  delegate_facts: true
+  with_items: "{{ groups.get(mon_group_name, []) }}"
+  run_once: true
+  when:
+    - groups.get(mon_group_name, []) | length > 0
+    - mon_use_fqdn | bool
 
 - name: find a running monitor
   when: groups.get(mon_group_name, []) | length > 0
@@ -162,6 +179,16 @@
       set_fact:
         fsid: "{{ cluster_uuid.stdout }}"
 
+- name: set_fact mds_name ansible_hostname
+  set_fact:
+    mds_name: "{{ ansible_hostname }}"
+  when: not mds_use_fqdn | bool
+
+- name: set_fact mds_name ansible_fqdn
+  set_fact:
+    mds_name: "{{ ansible_fqdn }}"
+  when: mds_use_fqdn | bool
+
 - name: resolve device link(s)
   command: readlink -f {{ item }}
   changed_when: false
@@ -190,69 +217,12 @@
     - inventory_hostname in groups.get(osd_group_name, [])
     - not osd_auto_discovery | default(False) | bool
 
-- name: resolve dedicated_device link(s)
-  command: readlink -f {{ item }}
-  changed_when: false
-  check_mode: no
-  with_items: "{{ dedicated_devices }}"
-  register: dedicated_devices_prepare_canonicalize
-  when:
-    - dedicated_devices is defined
-    - inventory_hostname in groups.get(osd_group_name, [])
-    - not osd_auto_discovery | default(False) | bool
-
-- name: set_fact build dedicated_devices from resolved symlinks
-  set_fact:
-    dedicated_devices: "{{ dedicated_devices | default([]) + [ item.stdout ] }}"
-  with_items: "{{ dedicated_devices_prepare_canonicalize.results }}"
-  when:
-    - dedicated_devices is defined
-    - inventory_hostname in groups.get(osd_group_name, [])
-    - not osd_auto_discovery | default(False) | bool
-
-- name: set_fact build final dedicated_devices list
-  set_fact:
-    dedicated_devices: "{{ dedicated_devices | reject('search','/dev/disk') | list | unique }}"
-  when:
-    - dedicated_devices is defined
-    - inventory_hostname in groups.get(osd_group_name, [])
-    - not osd_auto_discovery | default(False) | bool
-
-- name: resolve bluestore_wal_device link(s)
-  command: readlink -f {{ item }}
-  changed_when: false
-  check_mode: no
-  with_items: "{{ bluestore_wal_devices }}"
-  register: bluestore_wal_devices_prepare_canonicalize
-  when:
-    - bluestore_wal_devices is defined
-    - inventory_hostname in groups.get(osd_group_name, [])
-    - not osd_auto_discovery | default(False) | bool
-
-- name: set_fact build bluestore_wal_devices from resolved symlinks
-  set_fact:
-    bluestore_wal_devices: "{{ bluestore_wal_devices | default([]) + [ item.stdout ] }}"
-  with_items: "{{ bluestore_wal_devices_prepare_canonicalize.results }}"
-  when:
-    - bluestore_wal_devices is defined
-    - inventory_hostname in groups.get(osd_group_name, [])
-    - not osd_auto_discovery | default(False) | bool
-
-- name: set_fact build final bluestore_wal_devices list
-  set_fact:
-    bluestore_wal_devices: "{{ bluestore_wal_devices | reject('search','/dev/disk') | list | unique }}"
-  when:
-    - bluestore_wal_devices is defined
-    - inventory_hostname in groups.get(osd_group_name, [])
-    - not osd_auto_discovery | default(False) | bool
-
 - name: set_fact devices generate device list when osd_auto_discovery
   set_fact:
     devices: "{{ (devices | default([]) + [ item.key | regex_replace('^', '/dev/') ]) | unique }}"
   with_dict: "{{ ansible_devices }}"
   when:
     - osd_auto_discovery | default(False) | bool
-    - inventory_hostname in groups.get(osd_group_name, [])
     - ansible_devices is defined
     - item.value.removable == "0"
     - item.value.sectors != "0"
@@ -292,6 +262,18 @@
       when:
         - ceph_current_status['services'] is defined
         - ceph_current_status['services']['rgw'] is defined
+
+- name: set_fact osd_pool_default_pg_num
+  set_fact:
+    osd_pool_default_pg_num: "{{ ceph_conf_overrides.get('global', {}).get('osd_pool_default_pg_num', ceph_osd_pool_default_pg_num) }}"
+
+- name: set_fact osd_pool_default_size
+  set_fact:
+    osd_pool_default_size: "{{ ceph_conf_overrides.get('global', {}).get('osd_pool_default_size', ceph_osd_pool_default_size) }}"
+
+- name: set_fact osd_pool_default_min_size
+  set_fact:
+    osd_pool_default_min_size: "{{ ceph_conf_overrides.get('global', {}).get('osd_pool_default_min_size', ceph_osd_pool_default_min_size) }}"
 
 - name: check if the ceph conf exists
   stat:
@@ -335,10 +317,33 @@
   import_tasks: set_radosgw_address.yml
   when: inventory_hostname in groups.get(rgw_group_name, [])
 
+- name: set ntp service name depending on OS family
+  block:
+  - name: set ntp service name for Debian family
+    set_fact:
+      ntp_service_name: ntp
+    when: ansible_os_family == 'Debian'
+
+  - name: set ntp service name for Red Hat family
+    set_fact:
+      ntp_service_name: ntpd
+    when: ansible_os_family in ['RedHat', 'Suse']
+
+- name: set chrony daemon name RedHat and Ubuntu based OSs
+  block:
+    - name: set chronyd daemon name for RedHat based OSs
+      set_fact:
+        chrony_daemon_name: chronyd
+      when: ansible_os_family in ["RedHat", "Suse"]
+
+    - name: set chronyd daemon name for Ubuntu based OSs
+      set_fact:
+        chrony_daemon_name: chrony
+      when: ansible_os_family == "Debian"
+
 - name: set_fact use_new_ceph_iscsi package or old ceph-iscsi-config/cli
   set_fact:
     use_new_ceph_iscsi: "{{ (gateway_ip_list  == '0.0.0.0' and gateway_iqn | length == 0 and client_connections | length == 0 and rbd_devices | length == 0) | bool | ternary(true, false) }}"
-  when: iscsi_gw_group_name in group_names
 
 - name: set_fact ceph_run_cmd
   set_fact:

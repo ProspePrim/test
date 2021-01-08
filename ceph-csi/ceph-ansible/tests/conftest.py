@@ -18,6 +18,7 @@ def str_to_bool(val):
 @pytest.fixture(scope="module")
 def setup(host):
     cluster_address = ""
+    container_binary = ""
     osd_ids = []
     osds = []
 
@@ -25,7 +26,6 @@ def setup(host):
     ansible_facts = host.ansible("setup")
 
     docker = ansible_vars.get("docker")
-    container_binary = ansible_vars.get("container_binary", "")
     osd_auto_discovery = ansible_vars.get("osd_auto_discovery")
     group_names = ansible_vars["group_names"]
 
@@ -63,7 +63,9 @@ def setup(host):
 
     address = host.interface(public_interface).addresses[0]
 
-    if docker and not container_binary:
+    if docker:
+        container_binary = "docker"
+    if docker and str_to_bool(os.environ.get('IS_PODMAN', False)):  # noqa E501
         container_binary = "podman"
 
     data = dict(
@@ -109,9 +111,6 @@ def node(host, request):
         'kraken': 11,
         'luminous': 12,
         'mimic': 13,
-        'nautilus': 14,
-        'octopus': 15,
-        'pacific': 16,
         'dev': 99
     }
 

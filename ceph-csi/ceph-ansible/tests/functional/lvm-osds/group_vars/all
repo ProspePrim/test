@@ -12,8 +12,6 @@ os_tuning_params:
   - { name: fs.file-max, value: 26234859 }
 ceph_conf_overrides:
   global:
-    mon_allow_pool_size_one: true
-    mon_warn_on_pool_no_redundancy: false
     osd_pool_default_size: 1
 dashboard_enabled: False
 handler_health_mon_check_delay: 10
@@ -21,12 +19,19 @@ handler_health_osd_check_delay: 10
 openstack_config: True
 openstack_glance_pool:
   name: "images"
+  pg_num: "{{ osd_pool_default_pg_num }}"
+  pgp_num: "{{ osd_pool_default_pg_num }}"
   type: 3
   size: 1
+  erasure_profile: ""
   application: rbd
+  pg_autoscale_mode: True
   target_size_ratio: 0.2
 openstack_cinder_pool:
   name: "volumes"
+  pg_num: "{{ osd_pool_default_pg_num }}"
+  pgp_num: "{{ osd_pool_default_pg_num }}"
+  type: 1
   size: 1
   application: rbd
 openstack_pools:

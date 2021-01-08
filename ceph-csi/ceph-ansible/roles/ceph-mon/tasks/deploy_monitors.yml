@@ -45,18 +45,18 @@
     CEPH_CONTAINER_BINARY: "{{ container_binary }}"
 
 - name: copy the initial key in /etc/ceph (for containers)
-  copy:
-    src: /var/lib/ceph/tmp/{{ cluster }}.mon..keyring
-    dest: /etc/ceph/{{ cluster }}.mon.keyring
-    remote_src: true
+  command: >
+    cp /var/lib/ceph/tmp/{{ cluster }}.mon..keyring
+       /etc/ceph/{{ cluster }}.mon.keyring
+  changed_when: false
   when: containerized_deployment | bool
 
 - name: create monitor directory
   file:
     path: /var/lib/ceph/mon/{{ cluster }}-{{ monitor_name }}
     state: directory
-    owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
-    group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
+    owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
+    group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
     mode: "{{ ceph_directories_mode }}"
 
 # We don't do the recursion in the task above to avoid setting `mode` (which

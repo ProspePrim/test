@@ -16,8 +16,8 @@ from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
 from ansible.module_utils.basic import AnsibleModule
-import os
 import datetime
+import os
 
 
 ANSIBLE_METADATA = {
@@ -72,23 +72,6 @@ EXAMPLES = '''
 RETURN = '''#  '''
 
 
-def exit_module(module, out, rc, cmd, err, startd, changed=False):
-    endd = datetime.datetime.now()
-    delta = endd - startd
-
-    result = dict(
-        cmd=cmd,
-        start=str(startd),
-        end=str(endd),
-        delta=str(delta),
-        rc=rc,
-        stdout=out.rstrip("\r\n"),
-        stderr=err.rstrip("\r\n"),
-        changed=changed,
-    )
-    module.exit_json(**result)
-
-
 def container_exec(binary, container_image):
     '''
     Build the docker CLI to run a command inside a container
@@ -106,17 +89,31 @@ def container_exec(binary, container_image):
     return command_exec
 
 
-def is_containerized():
+def exec_command(module, cmd):
     '''
-    Check if we are running on a containerized cluster
+    Execute command(s)
     '''
 
-    if 'CEPH_CONTAINER_IMAGE' in os.environ:
-        container_image = os.getenv('CEPH_CONTAINER_IMAGE')
-    else:
-        container_image = None
+    rc, out, err = module.run_command(cmd)
 
-    return container_image
+    return rc, cmd, out, err
+
+
+def exit_module(module, out, rc, cmd, err, startd, changed=False):
+    endd = datetime.datetime.now()
+    delta = endd - startd
+
+    result = dict(
+        cmd=cmd,
+        start=str(startd),
+        end=str(endd),
+        delta=str(delta),
+        rc=rc,
+        stdout=out.rstrip("\r\n"),
+        stderr=err.rstrip("\r\n"),
+        changed=changed,
+    )
+    module.exit_json(**result)
 
 
 def pre_generate_ceph_cmd(container_image=None):
@@ -129,6 +126,19 @@ def pre_generate_ceph_cmd(container_image=None):
         cmd = ['ceph']
 
     return cmd
+
+
+def is_containerized():
+    '''
+    Check if we are running on a containerized cluster
+    '''
+
+    if 'CEPH_CONTAINER_IMAGE' in os.environ:
+        container_image = os.getenv('CEPH_CONTAINER_IMAGE')
+    else:
+        container_image = None
+
+    return container_image
 
 
 def generate_ceph_cmd(sub_cmd, args, user_key=None, cluster='ceph', user='client.admin', container_image=None):

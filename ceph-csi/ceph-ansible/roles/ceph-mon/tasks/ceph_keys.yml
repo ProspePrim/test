@@ -4,7 +4,8 @@
     {{ container_exec_cmd }}
     ceph
     --cluster {{ cluster }}
-    daemon mon.{{ ansible_hostname }}
+    -n mon.
+    -k /var/lib/ceph/mon/{{ cluster }}-{{ ansible_hostname }}/keyring
     mon_status
     --format json
   register: ceph_health_raw

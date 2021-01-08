@@ -623,7 +623,7 @@ def run_module():
                 result["stdout"] = "{0} already exists in {1} you must provide secret *and* caps when import_key is {2}".format(name, dest, import_key) # noqa E501
                 result["rc"] = 0
                 module.exit_json(**result)
-        if (key_exist == 0 and (secret != _secret or caps != _caps)) or key_exist != 0:  # noqa E501
+        if (key_exist == 0 and (secret != _secret or caps != _caps)) or key_exist != 0:
             rc, cmd, out, err = exec_commands(module, create_key(
                 module, result, cluster, user, user_key_path, name, secret, caps, import_key, file_path, container_image))  # noqa E501
             if rc != 0:

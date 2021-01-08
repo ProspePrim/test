@@ -18,8 +18,6 @@ dashboard_enabled: false
 ceph_conf_overrides:
   global:
     osd_pool_default_pg_num: 8
-    mon_allow_pool_size_one: true
-    mon_warn_on_pool_no_redundancy: false
     osd_pool_default_size: 1
 handler_health_mon_check_delay: 10
 handler_health_osd_check_delay: 10
@@ -45,4 +43,4 @@ lvm_volumes:
     db_vg: journals
 ceph_docker_registry: quay.ceph.io
 ceph_docker_image: ceph-ci/daemon
-ceph_docker_image_tag: latest-octopus
+ceph_docker_image_tag: latest-nautilus

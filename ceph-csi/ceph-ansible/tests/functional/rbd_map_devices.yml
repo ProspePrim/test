@@ -28,19 +28,15 @@
     - name: create an rbd image - non container
       command: "rbd create --size=1024 test/rbd_test"
       delegate_to: "mon0"
-      when:
-        - not is_atomic | bool
-        - not containerized_deployment | default(false) | bool
+      when: not is_atomic
 
     - name: create an rbd image - container
-      command: "podman run --rm -v /etc/ceph:/etc/ceph --net=host --entrypoint=rbd {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} create --size=1024 test/rbd_test"
+      command: "docker run --rm -v /etc/ceph:/etc/ceph --net=host --entrypoint=rbd {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} create --size=1024 test/rbd_test"
       delegate_to: "mon0"
-      when: is_atomic | bool or containerized_deployment | default(false) | bool
+      when: is_atomic
 
     - name: non container
-      when:
-        - not is_atomic | bool
-        - not containerized_deployment | default(false) | bool
+      when: not is_atomic
       block:
         - name: disable features unsupported by the kernel
           command: rbd feature disable test/rbd_test object-map fast-diff deep-flatten
@@ -49,10 +45,10 @@
           command: rbd map test/rbd_test
 
     - name: container
-      when: is_atomic | bool or containerized_deployment | default(false) | bool
+      when: is_atomic
       block:
         - name: disable features unsupported by the kernel
-          command: "podman run --rm -v /etc/ceph:/etc/ceph --net=host --entrypoint=rbd {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} feature disable test/rbd_test object-map fast-diff deep-flatten"
+          command: "docker run --rm -v /etc/ceph:/etc/ceph --net=host --entrypoint=rbd {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} feature disable test/rbd_test object-map fast-diff deep-flatten"
 
         - name: map a device
-          command: "podman run --rm --privileged -v /etc/ceph:/etc/ceph -v /dev:/dev --net=host --entrypoint=rbd {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} map test/rbd_test"
+          command: "docker run --rm --privileged -v /etc/ceph:/etc/ceph -v /dev:/dev --net=host --entrypoint=rbd {{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }} map test/rbd_test"

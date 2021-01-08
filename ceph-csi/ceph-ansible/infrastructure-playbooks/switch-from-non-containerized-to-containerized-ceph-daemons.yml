@@ -209,7 +209,6 @@
         name: ceph-defaults
     - import_role:
         name: ceph-facts
-        tasks_from: container_binary.yml
 
     - name: set osd flags
       ceph_osd_flag:
@@ -338,6 +337,13 @@
         name: ceph-osd
 
   post_tasks:
+    - name: get num_pgs
+      command: >
+        {{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph --cluster {{ cluster }} pg stat --format json
+      register: ceph_pgs
+      delegate_to: "{{ groups[mon_group_name][0] }}"
+      changed_when: false
+
     - name: container - waiting for clean pgs...
       command: >
         {{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph --cluster {{ cluster }} pg stat --format json
@@ -345,10 +351,11 @@
       until: >
         (((ceph_health_post.stdout | from_json).pg_summary.num_pg_by_state | length) > 0)
         and
-        (((ceph_health_post.stdout | from_json).pg_summary.num_pg_by_state | selectattr('name', 'search', '^active\\+clean') | map(attribute='num') | list | sum) == (ceph_health_post.stdout | from_json).pg_summary.num_pgs)
+        (((ceph_health_post.stdout | from_json).pg_summary.num_pg_by_state | selectattr('name', 'search', '^active\\+clean') | map(attribute='num') | list | sum) == (ceph_pgs.stdout | from_json).pg_summary.num_pgs)
       delegate_to: "{{ groups[mon_group_name][0] }}"
       retries: "{{ health_osd_check_retries }}"
       delay: "{{ health_osd_check_delay }}"
+      when: (ceph_pgs.stdout | from_json).pg_summary.num_pgs != 0
       changed_when: false
 
 
@@ -360,7 +367,6 @@
         name: ceph-defaults
     - import_role:
         name: ceph-facts
-        tasks_from: container_binary.yml
 
     - name: set osd flags
       ceph_osd_flag:
