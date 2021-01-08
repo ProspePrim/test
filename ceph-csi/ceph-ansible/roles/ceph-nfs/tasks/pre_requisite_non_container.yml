@@ -48,11 +48,7 @@
     - groups.get(mon_group_name, []) | length > 0
   block:
     - name: get keys from monitors
-      ceph_key:
-        name: "{{ item.name }}"
-        cluster: "{{ cluster }}"
-        output_format: plain
-        state: info
+      command: "ceph --cluster {{ cluster }} auth get {{ item.name }}"
       register: _rgw_keys
       with_items:
         - { name: "client.bootstrap-rgw", path: "/var/lib/ceph/bootstrap-rgw/{{ cluster }}.keyring", copy_key: "{{ nfs_obj_gw }}" }
@@ -67,8 +63,8 @@
       copy:
         dest: "{{ item.item.path }}"
         content: "{{ item.stdout + '\n' }}"
-        owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
-        group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
+        owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
+        group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
         mode: "{{ ceph_keyring_permissions }}"
       with_items: "{{ _rgw_keys.results }}"
       when:
@@ -79,16 +75,14 @@
       when: nfs_obj_gw | bool
       block:
         - name: create rados gateway keyring
-          ceph_key:
-            name: "client.rgw.{{ ansible_hostname }}"
-            cluster: "{{ cluster }}"
-            user: client.bootstrap-rgw
-            user_key: "/var/lib/ceph/bootstrap-rgw/{{ cluster }}.keyring"
-            caps:
-              mon: "allow rw"
-              osd: "allow rwx"
-            dest: "/var/lib/ceph/radosgw/{{ cluster }}-rgw.{{ ansible_hostname }}/keyring"
-            import_key: false
-            owner: ceph
-            group: ceph
-            mode: "{{ ceph_keyring_permissions }}"
+          command: ceph --cluster {{ cluster }} --name client.bootstrap-rgw --keyring /var/lib/ceph/bootstrap-rgw/{{ cluster }}.keyring auth get-or-create client.rgw.{{ ansible_hostname }} osd 'allow rwx' mon 'allow rw' -o /var/lib/ceph/radosgw/{{ cluster }}-rgw.{{ ansible_hostname }}/keyring
+          args:
+            creates: /var/lib/ceph/radosgw/{{ cluster }}-rgw.{{ ansible_hostname }}/keyring
+          changed_when: false
+
+        - name: set rados gateway key permissions
+          file:
+            path: /var/lib/ceph/radosgw/{{ cluster }}-rgw.{{ ansible_hostname }}/keyring
+            owner: "ceph"
+            group: "ceph"
+            mode: "0600"

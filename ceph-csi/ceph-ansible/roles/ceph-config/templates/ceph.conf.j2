@@ -2,7 +2,7 @@
 # {{ ansible_managed }}
 
 [global]
-{% if not cephx | bool %}
+{% if not cephx %}
 auth cluster required = none
 auth service required = none
 auth client required = none
@@ -36,10 +36,16 @@ osd pool default crush rule = {{ osd_pool_default_crush_rule }}
 fsid = {{ fsid }}
 mon host = {% if nb_mon > 0 %}
 {% for host in _monitor_addresses -%}
-{% if mon_host_v1.enabled | bool %}
+{% if msgr2_migration | default(False) %}
+[{{ "v2:" + host.addr + mon_host_v2.suffix }},{{ "v1:" + host.addr + mon_host_v1.suffix }}]
+{%- elif not msgr2_migration | default(False) and rolling_update -%}
+{{ host.addr }}
+{%- else -%}
+{% if mon_host_v1.enabled %}
 {% set _v1 = ',v1:' + host.addr + mon_host_v1.suffix %}
 {% endif %}
 [{{ "v2:" + host.addr + mon_host_v2.suffix }}{{ _v1 | default('') }}]
+{%- endif %}
 {%- if not loop.last -%},{%- endif %}
 {%- endfor %}
 {% elif nb_mon == 0 %}
@@ -130,7 +136,7 @@ rgw_zone = {{ instance['rgw_zone'] }}
 {% if inventory_hostname in groups.get(nfs_group_name, []) and inventory_hostname not in groups.get(rgw_group_name, []) %}
 {% for host in groups[nfs_group_name] %}
 {% set _rgw_hostname = hostvars[host]['rgw_hostname'] | default(hostvars[host]['ansible_hostname']) %}
-{% if nfs_obj_gw | bool %}
+{% if nfs_obj_gw %}
 [client.rgw.{{ _rgw_hostname }}]
 host = {{ _rgw_hostname }}
 keyring = /var/lib/ceph/radosgw/{{ cluster }}-rgw.{{ _rgw_hostname }}/keyring

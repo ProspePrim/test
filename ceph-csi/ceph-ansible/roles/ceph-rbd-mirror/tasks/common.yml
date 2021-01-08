@@ -1,13 +1,6 @@
 ---
 - name: get keys from monitors
-  ceph_key:
-    name: "{{ item.name }}"
-    cluster: "{{ cluster }}"
-    output_format: plain
-    state: info
-  environment:
-    CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
-    CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+  command: "{{ container_exec_cmd }} ceph --cluster {{ cluster }} auth get {{ item.name }}"
   register: _rbd_mirror_keys
   with_items:
     - { name: "client.bootstrap-rbd-mirror", path: "/var/lib/ceph/bootstrap-rbd-mirror/{{ cluster }}.keyring", copy_key: true }
@@ -22,8 +15,8 @@
   copy:
     dest: "{{ item.item.path }}"
     content: "{{ item.stdout + '\n' }}"
-    owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
-    group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
+    owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
+    group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
     mode: "{{ ceph_keyring_permissions }}"
   with_items: "{{ _rbd_mirror_keys.results }}"
   when:
@@ -31,17 +24,22 @@
     - item.item.copy_key | bool
 
 - name: create rbd-mirror keyring
-  ceph_key:
-    name: "client.rbd-mirror.{{ ansible_hostname }}"
-    cluster: "{{ cluster }}"
-    user: client.bootstrap-rbd-mirror
-    user_key: "/var/lib/ceph/bootstrap-rbd-mirror/{{ cluster }}.keyring"
-    caps:
-      mon: "profile rbd-mirror"
-      osd: "profile rbd"
-    dest: "/etc/ceph/{{ cluster }}.client.rbd-mirror.{{ ansible_hostname }}.keyring"
-    import_key: false
-    owner: ceph
-    group: ceph
+  command: >
+    ceph --cluster {{ cluster }}
+    --name client.bootstrap-rbd-mirror
+    --keyring /var/lib/ceph/bootstrap-rbd-mirror/{{ cluster }}.keyring
+    auth get-or-create client.rbd-mirror.{{ ansible_hostname }}
+    mon 'profile rbd-mirror'
+    osd 'profile rbd'
+    -o /etc/ceph/{{ cluster }}.client.rbd-mirror.{{ ansible_hostname }}.keyring
+  args:
+    creates: /etc/ceph/{{ cluster }}.client.rbd-mirror.{{ ansible_hostname }}.keyring
+  when: not containerized_deployment | bool
+
+- name: set rbd-mirror key permissions
+  file:
+    path: /etc/ceph/{{ cluster }}.client.rbd-mirror.{{ ansible_hostname }}.keyring
+    owner: "ceph"
+    group: "ceph"
     mode: "{{ ceph_keyring_permissions }}"
   when: not containerized_deployment | bool

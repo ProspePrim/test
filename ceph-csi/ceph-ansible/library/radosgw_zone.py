@@ -15,11 +15,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-from ansible.module_utils.basic import AnsibleModule
-import datetime
-import json
-import os
-
 
 ANSIBLE_METADATA = {
     'metadata_version': '1.1',
@@ -118,6 +113,13 @@ EXAMPLES = '''
 '''
 
 RETURN = '''#  '''
+
+from ansible.module_utils.basic import AnsibleModule  # noqa E402
+import datetime  # noqa E402
+import json  # noqa E402
+import os  # noqa E402
+import stat  # noqa E402
+import time  # noqa E402
 
 
 def container_exec(binary, container_image):
@@ -372,8 +374,8 @@ def run_module():
         realm=dict(type='str', require=True),
         zonegroup=dict(type='str', require=True),
         endpoints=dict(type='list', require=False, default=[]),
-        access_key=dict(type='str', required=False, no_log=True),
-        secret_key=dict(type='str', required=False, no_log=True),
+        access_key=dict(type='str', required=False),
+        secret_key=dict(type='str', required=False),
         default=dict(type='bool', required=False, default=False),
         master=dict(type='bool', required=False, default=False),
     )

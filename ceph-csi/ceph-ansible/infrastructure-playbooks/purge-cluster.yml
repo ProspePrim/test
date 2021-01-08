@@ -42,7 +42,7 @@
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ client_group_name|default('clients') }}"
     - "{{ mgr_group_name|default('mgrs') }}"
-    - "{{ monitoring_group_name | default('monitoring') }}"
+    - grafana-server
 
   become: true
 
@@ -139,7 +139,7 @@
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ client_group_name|default('clients') }}"
     - "{{ mgr_group_name|default('mgrs') }}"
-    - "{{ monitoring_group_name|default('monitoring') }}"
+    - grafana-server
     - clients
     - iscsigws
 
@@ -174,8 +174,8 @@
       when: dashboard_enabled | bool
 
 
-- name: purge ceph monitoring
-  hosts: monitoring
+- name: purge ceph grafana-server
+  hosts: grafana-server
   become: true
   vars:
     grafana_services:
@@ -706,7 +706,7 @@
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ client_group_name|default('clients') }}"
     - "{{ mgr_group_name|default('mgrs') }}"
-    - "{{ monitoring_group_name|default('monitoring') }}"
+    - grafana-server
 
   gather_facts: false # Already gathered previously
 

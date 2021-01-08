@@ -4,20 +4,12 @@
      - not rolling_update | bool
      - not docker2podman | default(False) | bool
   block:
-    - name: make tempdir for scripts
-      tempfile:
-        state: directory
-        prefix: ceph_ansible
-      listen:
-        - "restart ceph mons"
-        - "restart ceph osds"
-        - "restart ceph mdss"
-        - "restart ceph rgws"
-        - "restart ceph nfss"
-        - "restart ceph rbdmirrors"
-        - "restart ceph mgrs"
-      register: tmpdirpath
-      when: tmpdirpath is not defined or tmpdirpath.path is not defined or tmpdirpath.state=="absent"
+    - name: update apt cache
+      apt:
+        update-cache: yes
+      when: ansible_os_family == 'Debian'
+      register: result
+      until: result is succeeded
 
     - name: mons handler
       include_tasks: handler_mons.yml
@@ -74,18 +66,3 @@
           or inventory_hostname in groups.get(mds_group_name, [])
           or inventory_hostname in groups.get(rgw_group_name, [])
           or inventory_hostname in groups.get(rbdmirror_group_name, [])
-
-    - name: remove tempdir for scripts
-      file:
-        path: "{{ tmpdirpath.path }}"
-        state: absent
-      listen:
-        - "restart ceph mons"
-        - "restart ceph osds"
-        - "restart ceph mdss"
-        - "restart ceph rgws"
-        - "restart ceph nfss"
-        - "restart ceph rbdmirrors"
-        - "restart ceph mgrs"
-      register: tmpdirpath
-      when: tmpdirpath is defined

@@ -371,7 +371,7 @@
     - "{{ rbdmirror_group_name|default('rbdmirrors') }}"
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ mgr_group_name|default('mgrs') }}"
-    - "{{ monitoring_group_name | default('monitoring') }}"
+    - grafana-server
     - iscsigws
     - clients
 
@@ -409,7 +409,7 @@
 
 - name: purge ceph-grafana
 
-  hosts: monitoring
+  hosts: grafana-server
 
   gather_facts: false
 

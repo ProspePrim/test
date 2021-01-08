@@ -55,7 +55,7 @@ dummy:
 #iscsi_gw_group_name: iscsigws
 #mgr_group_name: mgrs
 #rgwloadbalancer_group_name: rgwloadbalancers
-#monitoring_group_name: monitoring
+#grafana_server_group_name: grafana-server
 
 # If configure_firewall is true, then ansible will try to configure the
 # appropriate firewalling rules so that Ceph daemons can communicate
@@ -457,14 +457,9 @@ ceph_iscsi_config_dev: false
 ###############
 # NFS-GANESHA #
 ###############
-#
-# Access type options
-#
-# Enable NFS File access
-# If set to true, then ganesha is set up to export the root of the
-# Ceph filesystem, and ganesha's attribute and directory caching is disabled
-# as much as possible since libcephfs clients also caches the same
-# information.
+
+# Confiure the type of NFS gatway access.  At least one must be enabled for an
+# NFS role to be useful
 #
 # Set this to true to enable File access via NFS.  Requires an MDS role.
 #nfs_file_gw: false
@@ -567,7 +562,9 @@ ceph_docker_registry_auth: true
 #ceph_client_docker_image: "{{ ceph_docker_image }}"
 #ceph_client_docker_image_tag: "{{ ceph_docker_image_tag }}"
 #ceph_client_docker_registry: "{{ ceph_docker_registry }}"
-containerized_deployment: true
+#ceph_docker_enable_centos_extra_repo: false
+#ceph_docker_on_openstack: false
+#containerized_deployment: False
 #container_binary:
 #timeout_command: "{{ 'timeout --foreground -s KILL ' ~ docker_pull_timeout if (docker_pull_timeout != '0') and (ceph_docker_dev_image is undefined or not ceph_docker_dev_image) else '' }}"
 

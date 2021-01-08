@@ -49,7 +49,7 @@
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ client_group_name|default('clients') }}"
     - "{{ iscsi_gw_group_name|default('iscsigws') }}"
-    - "{{ monitoring_group_name|default('monitoring') }}"
+    - "{{ grafana_server_group_name|default('grafana-server') }}"
 
   any_errors_fatal: True
   become: True
@@ -156,8 +156,8 @@
     - name: ensure /var/lib/ceph/bootstrap-rbd-mirror is present
       file:
         path: /var/lib/ceph/bootstrap-rbd-mirror
-        owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
-        group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
+        owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
+        group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
         mode: '755'
         state: directory
       delegate_to: "{{ item }}"
@@ -178,7 +178,7 @@
         - ['bootstrap-rbd', 'bootstrap-rbd-mirror']
         - "{{ groups[mon_group_name] }}" # so the key goes on all the nodes
       environment:
-        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment else None }}"
         CEPH_CONTAINER_BINARY: "{{ container_binary }}"
       when:
         - cephx | bool
@@ -407,20 +407,20 @@
         name: ceph-osd
 
     - name: scan ceph-disk osds with ceph-volume if deploying nautilus
-      ceph_volume_simple_scan:
-        cluster: "{{ cluster }}"
-        force: true
+      command: "ceph-volume --cluster={{ cluster }} simple scan --force"
       environment:
         CEPH_VOLUME_DEBUG: "{{ ceph_volume_debug }}"
-      when: not containerized_deployment | bool
+      when:
+        - ceph_release in ["nautilus", "octopus"]
+        - not containerized_deployment | bool
 
     - name: activate scanned ceph-disk osds and migrate to ceph-volume if deploying nautilus
-      ceph_volume_simple_activate:
-        cluster: "{{ cluster }}"
-        osd_all: true
+      command: "ceph-volume --cluster={{ cluster }} simple activate --all"
       environment:
         CEPH_VOLUME_DEBUG: "{{ ceph_volume_debug }}"
-      when: not containerized_deployment | bool
+      when:
+        - ceph_release in ["nautilus", "octopus"]
+        - not containerized_deployment | bool
 
     - name: get num_pgs - non container
       command: "{{ container_exec_cmd_update_osd|default('') }} ceph --cluster {{ cluster }} pg stat --format json"
@@ -871,30 +871,62 @@
         name: ceph-crash
 
 - name: complete upgrade
-  hosts: "{{ mon_group_name | default('mons') }}"
+  hosts:
+  - "{{ mon_group_name | default('mons') }}"
+  - "{{ mgr_group_name | default('mgrs') }}"
+  - "{{ osd_group_name | default('osds') }}"
+  - "{{ mds_group_name | default('mdss') }}"
+  - "{{ rgw_group_name | default('rgws') }}"
+  - "{{ nfs_group_name | default('nfss') }}"
+  - "{{ rbdmirror_group_name | default('rbdmirrors') }}"
+  - "{{ client_group_name | default('clients') }}"
+  - "{{ iscsi_gw_group_name | default('iscsigws') }}"
   become: True
   tasks:
     - import_role:
         name: ceph-defaults
     - import_role:
         name: ceph-facts
-        tasks_from: container_binary.yml
 
-    - name: container | disallow pre-pacific OSDs and enable all new pacific-only functionality
-      command: "{{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph --cluster {{ cluster }} osd require-osd-release pacific"
+    - name: container | disallow pre-octopus OSDs and enable all new octopus-only functionality
+      command: "{{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph --cluster {{ cluster }} osd require-osd-release octopus"
       delegate_to: "{{ groups[mon_group_name][0] }}"
       run_once: True
       when:
         - containerized_deployment | bool
         - groups.get(mon_group_name, []) | length > 0
 
-    - name: non container | disallow pre-pacific OSDs and enable all new pacific-only functionality
-      command: "ceph --cluster {{ cluster }} osd require-osd-release pacific"
+    - name: non container | disallow pre-octopus OSDs and enable all new octopus-only functionality
+      command: "ceph --cluster {{ cluster }} osd require-osd-release octopus"
       delegate_to: "{{ groups[mon_group_name][0] }}"
       run_once: True
       when:
         - not containerized_deployment | bool
         - groups.get(mon_group_name, []) | length > 0
+
+    - name: container | enable msgr2 protocol
+      command: "{{ container_binary }} exec ceph-mon-{{ hostvars[groups[mon_group_name][0]]['ansible_hostname'] }} ceph --cluster {{ cluster }} mon enable-msgr2"
+      delegate_to: "{{ groups[mon_group_name][0] }}"
+      run_once: True
+      when:
+        - containerized_deployment | bool
+        - groups.get(mon_group_name, []) | length > 0
+
+    - name: non container | enable msgr2 protocol
+      command: "ceph --cluster {{ cluster }} mon enable-msgr2"
+      delegate_to: "{{ groups[mon_group_name][0] }}"
+      run_once: True
+      when:
+        - not containerized_deployment | bool
+        - groups.get(mon_group_name, []) | length > 0
+
+    - import_role:
+        name: ceph-handler
+    - name: import_role ceph-config
+      import_role:
+        name: ceph-config
+      vars:
+        msgr2_migration: True
 
 - name: upgrade node-exporter
   hosts: all
@@ -927,7 +959,7 @@
             name: ceph-node-exporter
 
 - name: upgrade monitoring node
-  hosts: "{{ monitoring_group_name }}"
+  hosts: "{{ grafana_server_group_name }}"
   gather_facts: false
   become: true
   tasks:

@@ -5,10 +5,11 @@
 # when running with containerized_deployment: false this task
 # will add all client hosts to the group (and not filter).
 - name: create filtered clients group
-  group_by:
-    key: _filtered_clients
-    parents: "{{ client_group_name }}"
-  when: (ansible_architecture == 'x86_64') or (not containerized_deployment | bool)
+  add_host:
+    name: "{{ item }}"
+    groups: _filtered_clients
+  with_items: "{{ groups[client_group_name] | intersect(ansible_play_batch) }}"
+  when: (hostvars[item]['ansible_architecture'] == 'x86_64') or (not containerized_deployment | bool)
 
 - name: set_fact delegated_node
   set_fact:
@@ -30,7 +31,7 @@
     owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
     group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
   environment:
-    CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+    CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment else None }}"
     CEPH_CONTAINER_BINARY: "{{ container_binary }}"
   with_items:
     - "{{ keys }}"
@@ -75,7 +76,7 @@
         target_size_ratio: "{{ item.target_size_ratio | default(omit) }}"
         application: "{{ item.application | default(omit) }}"
       environment:
-        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
+        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment else None }}"
         CEPH_CONTAINER_BINARY: "{{ container_binary }}"
       with_items: "{{ pools }}"
       changed_when: false

@@ -33,7 +33,7 @@
     - "{{ rbdmirror_group_name|default('rbdmirrors') }}"
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ iscsi_gw_group_name|default('iscsigws') }}"
-    - "{{ monitoring_group_name|default('monitoring') }}"
+    - "{{ grafana_server_group_name|default('grafana-server') }}"
   become: true
   gather_facts: false
   vars:
@@ -184,13 +184,8 @@
         fsid: "{{ (current_fsid.stdout | from_json).fsid }}"
 
     - name: enable cephadm mgr module
-      ceph_mgr_module:
-        name: cephadm
-        cluster: "{{ cluster }}"
-        state: enable
-      environment:
-        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
-        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      command: "{{ container_exec_cmd | default('') }} ceph --cluster {{ cluster }} mgr module enable cephadm"
+      changed_when: false
       run_once: true
       delegate_to: '{{ groups[mon_group_name][0] }}'
 
@@ -281,14 +276,8 @@
         ceph_cmd: "{{ container_binary + ' run --rm --net=host -v /etc/ceph:/etc/ceph:z -v /var/lib/ceph:/var/lib/ceph:z -v /var/run/ceph:/var/run/ceph:z --entrypoint=ceph ' + ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else 'ceph' }}"
 
     - name: get the client.admin keyring
-      ceph_key:
-        name: client.admin
-        cluster: "{{ cluster }}"
-        output_format: plain
-        state: info
-      environment:
-        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
-        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      command: "{{ ceph_cmd }} --cluster {{ cluster }} auth get client.admin"
+      changed_when: false
       run_once: true
       delegate_to: '{{ groups[mon_group_name][0] }}'
       register: client_admin_keyring
@@ -437,13 +426,13 @@
         tasks_from: container_binary.yml
       when: containerized_deployment | bool
 
+    - name: set_fact ceph_volume
+      set_fact:
+        ceph_volume: "{{ container_binary + ' run --rm --privileged=true --net=host --pid=host --ipc=host -v /dev:/dev -v /etc/ceph:/etc/ceph:z -v /var/lib/ceph:/var/lib/ceph:z -v /var/run:/var/run --entrypoint=ceph-volume ' + ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else 'ceph-volume' }}"
+
     - name: get osd list
-      ceph_volume:
-        cluster: "{{ cluster }}"
-        action: list
-      environment:
-        CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
-        CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+      command: "{{ ceph_volume }} --cluster {{ cluster }} lvm list --format json"
+      changed_when: false
       register: osd_list
 
     - name: set osd fsid for containerized deployment
@@ -831,7 +820,7 @@
         CEPHADM_IMAGE: '{{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }}'
 
 - name: redeploy alertmanager/grafana/prometheus daemons
-  hosts: "{{ monitoring_group_name|default('monitoring') }}"
+  hosts: "{{ grafana_server_group_name|default('grafana-server') }}"
   serial: 1
   become: true
   gather_facts: false
@@ -980,7 +969,7 @@
     - "{{ rbdmirror_group_name|default('rbdmirrors') }}"
     - "{{ nfs_group_name|default('nfss') }}"
     - "{{ iscsi_gw_group_name|default('iscsigws') }}"
-    - "{{ monitoring_group_name|default('monitoring') }}"
+    - "{{ grafana_server_group_name|default('grafana-server') }}"
   become: true
   gather_facts: false
   tasks:
@@ -1033,19 +1022,19 @@
       when: dashboard_enabled | bool
       block:
         - name: update the placement of alertmanager hosts
-          command: "{{ cephadm_cmd }} shell --fsid {{ fsid }} -- ceph --cluster {{ cluster }} orch apply alertmanager --placement='{{ groups.get(monitoring_group_name, []) | length }} label:{{ monitoring_group_name }}'"
+          command: "{{ cephadm_cmd }} shell --fsid {{ fsid }} -- ceph --cluster {{ cluster }} orch apply alertmanager --placement='{{ groups.get(grafana_server_group_name, []) | length }} label:{{ grafana_server_group_name }}'"
           changed_when: false
           environment:
             CEPHADM_IMAGE: '{{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }}'
 
         - name: update the placement of grafana hosts
-          command: "{{ cephadm_cmd }} shell --fsid {{ fsid }} -- ceph --cluster {{ cluster }} orch apply grafana --placement='{{ groups.get(monitoring_group_name, []) | length }} label:{{ monitoring_group_name }}'"
+          command: "{{ cephadm_cmd }} shell --fsid {{ fsid }} -- ceph --cluster {{ cluster }} orch apply grafana --placement='{{ groups.get(grafana_server_group_name, []) | length }} label:{{ grafana_server_group_name }}'"
           changed_when: false
           environment:
             CEPHADM_IMAGE: '{{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }}'
 
         - name: update the placement of prometheus hosts
-          command: "{{ cephadm_cmd }} shell --fsid {{ fsid }} -- ceph --cluster {{ cluster }} orch apply prometheus --placement='{{ groups.get(monitoring_group_name, []) | length }} label:{{ monitoring_group_name }}'"
+          command: "{{ cephadm_cmd }} shell --fsid {{ fsid }} -- ceph --cluster {{ cluster }} orch apply prometheus --placement='{{ groups.get(grafana_server_group_name, []) | length }} label:{{ grafana_server_group_name }}'"
           changed_when: false
           environment:
             CEPHADM_IMAGE: '{{ ceph_docker_registry }}/{{ ceph_docker_image }}:{{ ceph_docker_image_tag }}'

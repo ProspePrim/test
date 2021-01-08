@@ -7,5 +7,5 @@ osd0
 [mgrs]
 mon0
 
-[monitoring]
+[grafana-server]
 mon0

@@ -23,5 +23,5 @@ rgw0
 [clients]
 client0
 
-[monitoring]
+[grafana-server]
 mon0

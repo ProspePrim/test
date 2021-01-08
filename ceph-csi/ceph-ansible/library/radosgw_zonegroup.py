@@ -15,11 +15,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-from ansible.module_utils.basic import AnsibleModule
-import datetime
-import json
-import os
-
 
 ANSIBLE_METADATA = {
     'metadata_version': '1.1',
@@ -105,6 +100,13 @@ EXAMPLES = '''
 '''
 
 RETURN = '''#  '''
+
+from ansible.module_utils.basic import AnsibleModule  # noqa E402
+import datetime  # noqa E402
+import json  # noqa E402
+import os  # noqa E402
+import stat  # noqa E402
+import time  # noqa E402
 
 
 def container_exec(binary, container_image):

@@ -3,22 +3,15 @@
   file:
     path: "{{ item }}"
     state: directory
-    owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
-    group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
+    owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
+    group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
     mode: "{{ ceph_directories_mode }}"
   with_items:
     - /var/lib/ceph/bootstrap-mds/
     - /var/lib/ceph/mds/{{ cluster }}-{{ ansible_hostname }}
 
 - name: get keys from monitors
-  ceph_key:
-    name: "{{ item.name }}"
-    cluster: "{{ cluster }}"
-    output_format: plain
-    state: info
-  environment:
-    CEPH_CONTAINER_IMAGE: "{{ ceph_docker_registry + '/' + ceph_docker_image + ':' + ceph_docker_image_tag if containerized_deployment | bool else None }}"
-    CEPH_CONTAINER_BINARY: "{{ container_binary }}"
+  command: "{{ container_exec_cmd | default('') }} ceph --cluster {{ cluster }} auth get {{ item.name }}"
   register: _mds_keys
   with_items:
     - { name: "client.bootstrap-mds", path: "/var/lib/ceph/bootstrap-mds/{{ cluster }}.keyring", copy_key: true }
@@ -33,8 +26,8 @@
   copy:
     dest: "{{ item.item.path }}"
     content: "{{ item.stdout + '\n' }}"
-    owner: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
-    group: "{{ ceph_uid if containerized_deployment | bool else 'ceph' }}"
+    owner: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
+    group: "{{ ceph_uid if containerized_deployment else 'ceph' }}"
     mode: "{{ ceph_keyring_permissions }}"
   with_items: "{{ _mds_keys.results }}"
   when:

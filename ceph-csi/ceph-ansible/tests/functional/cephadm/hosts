@@ -27,5 +27,5 @@ rbd-mirror0
 [iscsigws]
 iscsi-gw0
 
-[monitoring]
+[grafana-server]
 mon0

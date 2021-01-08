@@ -17,25 +17,6 @@
 from __future__ import absolute_import, division, print_function
 __metaclass__ = type
 
-from ansible.module_utils.basic import AnsibleModule
-try:
-    from ansible.module_utils.ca_common import generate_ceph_cmd, \
-                                               pre_generate_ceph_cmd, \
-                                               is_containerized, \
-                                               exec_command, \
-                                               exit_module
-except ImportError:
-    from module_utils.ca_common import generate_ceph_cmd, \
-                                       pre_generate_ceph_cmd, \
-                                       is_containerized, \
-                                       exec_command, \
-                                       exit_module
-
-
-import datetime
-import json
-import os
-
 
 ANSIBLE_METADATA = {
     'metadata_version': '1.1',
@@ -154,6 +135,88 @@ pools:
 
 RETURN = '''#  '''
 
+from ansible.module_utils.basic import AnsibleModule  # noqa E402
+import datetime  # noqa E402
+import json  # noqa E402
+import os  # noqa E402
+import stat  # noqa E402
+import time  # noqa E402
+
+
+def container_exec(binary, container_image):
+    '''
+    Build the docker CLI to run a command inside a container
+    '''
+
+    container_binary = os.getenv('CEPH_CONTAINER_BINARY')
+    command_exec = [container_binary,
+                    'run',
+                    '--rm',
+                    '--net=host',
+                    '-v', '/etc/ceph:/etc/ceph:z',
+                    '-v', '/var/lib/ceph/:/var/lib/ceph/:z',
+                    '-v', '/var/log/ceph/:/var/log/ceph/:z',
+                    '--entrypoint=' + binary, container_image]
+    return command_exec
+
+
+def is_containerized():
+    '''
+    Check if we are running on a containerized cluster
+    '''
+
+    if 'CEPH_CONTAINER_IMAGE' in os.environ:
+        container_image = os.getenv('CEPH_CONTAINER_IMAGE')
+    else:
+        container_image = None
+
+    return container_image
+
+
+def pre_generate_ceph_cmd(container_image=None):
+    if container_image:
+        binary = 'ceph'
+        cmd = container_exec(
+            binary, container_image)
+    else:
+        binary = ['ceph']
+        cmd = binary
+
+    return cmd
+
+
+def generate_ceph_cmd(cluster, args, user, user_key, container_image=None):
+    '''
+    Generate 'ceph' command line to execute
+    '''
+
+    cmd = pre_generate_ceph_cmd(container_image=container_image)
+
+    base_cmd = [
+        '-n',
+        user,
+        '-k',
+        user_key,
+        '--cluster',
+        cluster,
+        'osd',
+        'pool'
+    ]
+
+    cmd.extend(base_cmd + args)
+
+    return cmd
+
+
+def exec_commands(module, cmd):
+    '''
+    Execute command(s)
+    '''
+
+    rc, out, err = module.run_command(cmd)
+
+    return rc, cmd, out, err
+
 
 def check_pool_exist(cluster,
                      name,
@@ -167,9 +230,8 @@ def check_pool_exist(cluster,
 
     args = ['stats', name, '-f', output_format]
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -211,9 +273,8 @@ def get_application_pool(cluster,
 
     args = ['application', 'get', name, '-f', output_format]
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -233,9 +294,8 @@ def enable_application_pool(cluster,
 
     args = ['application', 'enable', name, application]
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -256,9 +316,8 @@ def disable_application_pool(cluster,
     args = ['application', 'disable', name,
             application, '--yes-i-really-mean-it']
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -279,24 +338,23 @@ def get_pool_details(module,
 
     args = ['ls', 'detail', '-f', output_format]
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
 
-    rc, cmd, out, err = exec_command(module, cmd)
+    rc, cmd, out, err = exec_commands(module, cmd)
 
     if rc == 0:
         out = [p for p in json.loads(out.strip()) if p['pool_name'] == name][0]
 
-    _rc, _cmd, application_pool, _err = exec_command(module,
-                                                     get_application_pool(cluster,    # noqa: E501
-                                                                          name,    # noqa: E501
-                                                                          user,    # noqa: E501
-                                                                          user_key,    # noqa: E501
-                                                                          container_image=container_image))  # noqa: E501
+    _rc, _cmd, application_pool, _err = exec_commands(module,
+                                                      get_application_pool(cluster,    # noqa: E501
+                                                                           name,    # noqa: E501
+                                                                           user,    # noqa: E501
+                                                                           user_key,    # noqa: E501
+                                                                           container_image=container_image))  # noqa: E501
 
     # This is a trick because "target_size_ratio" isn't present at the same level in the dict
     # ie:
@@ -367,9 +425,8 @@ def list_pools(cluster,
 
     args.extend(['-f', output_format])
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -421,9 +478,8 @@ def create_pool(cluster,
                      '--autoscale-mode',
                      user_pool_config['pg_autoscale_mode']['value']])
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -438,9 +494,8 @@ def remove_pool(cluster, name, user, user_key, container_image=None):
 
     args = ['rm', name, name, '--yes-i-really-really-mean-it']
 
-    cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+    cmd = generate_ceph_cmd(cluster=cluster,
                             args=args,
-                            cluster=cluster,
                             user=user,
                             user_key=user_key,
                             container_image=container_image)
@@ -463,23 +518,22 @@ def update_pool(module, cluster, name,
                     delta[key]['cli_set_opt'],
                     delta[key]['value']]
 
-            cmd = generate_ceph_cmd(sub_cmd=['osd', 'pool'],
+            cmd = generate_ceph_cmd(cluster=cluster,
                                     args=args,
-                                    cluster=cluster,
                                     user=user,
                                     user_key=user_key,
                                     container_image=container_image)
 
-            rc, cmd, out, err = exec_command(module, cmd)
+            rc, cmd, out, err = exec_commands(module, cmd)
             if rc != 0:
                 return rc, cmd, out, err
 
         else:
-            rc, cmd, out, err = exec_command(module, disable_application_pool(cluster, name, delta['application']['old_application'], user, user_key, container_image=container_image))  # noqa: E501
+            rc, cmd, out, err = exec_commands(module, disable_application_pool(cluster, name, delta['application']['old_application'], user, user_key, container_image=container_image))  # noqa: E501
             if rc != 0:
                 return rc, cmd, out, err
 
-            rc, cmd, out, err = exec_command(module, enable_application_pool(cluster, name, delta['application']['new_application'], user, user_key, container_image=container_image))  # noqa: E501
+            rc, cmd, out, err = exec_commands(module, enable_application_pool(cluster, name, delta['application']['new_application'], user, user_key, container_image=container_image))  # noqa: E501
             if rc != 0:
                 return rc, cmd, out, err
 
@@ -487,6 +541,23 @@ def update_pool(module, cluster, name,
 
     out = report
     return rc, cmd, out, err
+
+
+def exit_module(module, out, rc, cmd, err, startd, changed=False):
+    endd = datetime.datetime.now()
+    delta = endd - startd
+
+    result = dict(
+        cmd=cmd,
+        start=str(startd),
+        end=str(endd),
+        delta=str(delta),
+        rc=rc,
+        stdout=out.rstrip("\r\n"),
+        stderr=err.rstrip("\r\n"),
+        changed=changed,
+    )
+    module.exit_json(**result)
 
 
 def run_module():
@@ -590,12 +661,12 @@ def run_module():
     user_key = os.path.join("/etc/ceph/", keyring_filename)
 
     if state == "present":
-        rc, cmd, out, err = exec_command(module,
-                                         check_pool_exist(cluster,
-                                                          name,
-                                                          user,
-                                                          user_key,
-                                                          container_image=container_image))  # noqa: E501
+        rc, cmd, out, err = exec_commands(module,
+                                          check_pool_exist(cluster,
+                                                           name,
+                                                           user,
+                                                           user_key,
+                                                           container_image=container_image))  # noqa: E501
         if rc == 0:
             running_pool_details = get_pool_details(module,
                                                     cluster,
@@ -630,49 +701,49 @@ def run_module():
             else:
                 out = "Pool {} already exists and there is nothing to update.".format(name)  # noqa: E501
         else:
-            rc, cmd, out, err = exec_command(module,
-                                             create_pool(cluster,
-                                                         name,
-                                                         user,
-                                                         user_key,
-                                                         user_pool_config=user_pool_config,  # noqa: E501
-                                                         container_image=container_image))  # noqa: E501
+            rc, cmd, out, err = exec_commands(module,
+                                              create_pool(cluster,
+                                                          name,
+                                                          user,
+                                                          user_key,
+                                                          user_pool_config=user_pool_config,  # noqa: E501
+                                                          container_image=container_image))  # noqa: E501
             if user_pool_config['application']['value']:
-                rc, _, _, _ = exec_command(module,
-                                           enable_application_pool(cluster,
-                                                                   name,
-                                                                   user_pool_config['application']['value'],  # noqa: E501
-                                                                   user,
-                                                                   user_key,
-                                                                   container_image=container_image))  # noqa: E501
+                rc, _, _, _ = exec_commands(module,
+                                            enable_application_pool(cluster,
+                                                                    name,
+                                                                    user_pool_config['application']['value'],  # noqa: E501
+                                                                    user,
+                                                                    user_key,
+                                                                    container_image=container_image))  # noqa: E501
             if user_pool_config['min_size']['value']:
                 # not implemented yet
                 pass
             changed = True
 
     elif state == "list":
-        rc, cmd, out, err = exec_command(module,
-                                         list_pools(cluster,
-                                                    name, user,
-                                                    user_key,
-                                                    details,
-                                                    container_image=container_image))  # noqa: E501
+        rc, cmd, out, err = exec_commands(module,
+                                          list_pools(cluster,
+                                                     name, user,
+                                                     user_key,
+                                                     details,
+                                                     container_image=container_image))  # noqa: E501
         if rc != 0:
             out = "Couldn't list pool(s) present on the cluster"
 
     elif state == "absent":
-        rc, cmd, out, err = exec_command(module,
-                                         check_pool_exist(cluster,
-                                                          name, user,
+        rc, cmd, out, err = exec_commands(module,
+                                          check_pool_exist(cluster,
+                                                           name, user,
+                                                           user_key,
+                                                           container_image=container_image))  # noqa: E501
+        if rc == 0:
+            rc, cmd, out, err = exec_commands(module,
+                                              remove_pool(cluster,
+                                                          name,
+                                                          user,
                                                           user_key,
                                                           container_image=container_image))  # noqa: E501
-        if rc == 0:
-            rc, cmd, out, err = exec_command(module,
-                                             remove_pool(cluster,
-                                                         name,
-                                                         user,
-                                                         user_key,
-                                                         container_image=container_image))  # noqa: E501
             changed = True
         else:
             rc = 0
